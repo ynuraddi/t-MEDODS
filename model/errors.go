@@ -2,4 +2,7 @@ package model
 
 import "errors"
 
-var ErrNoUser = errors.New("User is not exist")
+var (
+	ErrInvalidToken = errors.New("token is invalid")
+	ErrExpiredToken = errors.New("token has expired")
+)

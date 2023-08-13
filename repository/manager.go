@@ -10,21 +10,22 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type IUserRepository interface {
-	UserByName(ctx context.Context, username string) (dbuser model.User, err error)
+type ISessionRepository interface {
+	CreateSession(ctx context.Context, sess model.Session) error
+	SessionByUser(ctx context.Context, userID string) (session model.Session, err error)
 }
 
 type Manager struct {
-	User IUserRepository
+	Sess ISessionRepository
 }
 
 func New(config config.Config, logger logger.Logger, client *mongo.Client) *Manager {
 	dbmedods := client.Database(config.MongoDBName)
 
-	userRepostiory := mongodb.NewUserRepostiory(dbmedods)
+	sessionRepostiory := mongodb.NewSessionRepostiory(dbmedods)
 
 	repository := &Manager{
-		User: userRepostiory,
+		Sess: sessionRepostiory,
 	}
 	logger.Info("repository success inited")
 	return repository

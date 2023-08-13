@@ -10,6 +10,8 @@ import (
 	"github.com/ynuraddi/t-medods/config"
 	"github.com/ynuraddi/t-medods/logger"
 	"github.com/ynuraddi/t-medods/repository"
+	"github.com/ynuraddi/t-medods/service"
+	"github.com/ynuraddi/t-medods/transport"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -35,6 +37,16 @@ func main() {
 	defer close()
 
 	repository := repository.New(config, logger, clientMongo)
+
+	service := service.New(&config, logger, repository)
+
+	server := transport.NewServer(&config, logger, service)
+
+	if err := server.Serve(ctx); err != nil {
+		logger.Error("Server stoped with:", err)
+		return
+	}
+	logger.Info("application shutdowing")
 }
 
 func mongoClient(config *config.Config, logger logger.Logger) (client *mongo.Client, err error, close func()) {
