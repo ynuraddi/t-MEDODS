@@ -10,7 +10,7 @@ import (
 
 type IAuthService interface {
 	CreateSession(ctx context.Context, uid string) (access, refresh string, err error)
-	RefreshSession(ctx context.Context, refreshToken string) (access, refresh string, err error)
+	RefreshSession(ctx context.Context, oldaccess, oldrefresh string) (newaccess, newrefresh string, err error)
 }
 
 type Manager struct {

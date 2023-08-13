@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -16,10 +17,9 @@ import (
 )
 
 type payload struct {
-	ID        string    `json:"jti"`
 	Subject   string    `json:"sub"`
-	IssuedAt  time.Time `json:"iat"`
-	ExpiresAt time.Time `json:"exp"`
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiresAt time.Time `json:"expire_at"`
 }
 
 func (p *payload) Valid() error {
@@ -44,19 +44,14 @@ func NewAuthService(config *config.Config, repo repository.ISessionRepository) *
 }
 
 func (s *authService) CreateSession(ctx context.Context, userID string) (access, refresh string, err error) {
-	tokenID, err := s.createTokenID()
-	if err != nil {
-		return "", "", err
-	}
-
-	access, err = s.createToken(userID, tokenID, 5*time.Minute, s.accessKey)
+	access, err = s.createToken(userID, 5*time.Minute, s.accessKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed generate access token: %w", err)
 	}
 
-	refresh, err = s.createToken(userID, tokenID, 1*time.Hour, s.refreshKey)
+	refresh, err = s.createRefresh()
 	if err != nil {
-		return "", "", fmt.Errorf("failed generate refresh token: %w", err)
+		return "", "", err
 	}
 
 	hashRefresh, err := s.hashToken(refresh)
@@ -74,8 +69,8 @@ func (s *authService) CreateSession(ctx context.Context, userID string) (access,
 	return access, refresh, nil
 }
 
-func (s *authService) RefreshSession(ctx context.Context, refreshToken string) (access, refresh string, err error) {
-	payload, err := s.verifyToken(refreshToken)
+func (s *authService) RefreshSession(ctx context.Context, oldaccess, oldrefresh string) (newaccess, newrefresh string, err error) {
+	payload, err := s.verifyToken(oldaccess)
 	if err != nil {
 		return "", "", err
 	}
@@ -85,27 +80,26 @@ func (s *authService) RefreshSession(ctx context.Context, refreshToken string) (
 		return "", "", err
 	}
 
-	if !s.compareTokensHash(session.TokenHash, refreshToken) {
+	if !s.compareTokensHash(session.TokenHash, oldrefresh) {
 		return "", "", model.ErrExpiredToken
 	}
 
-	access, refresh, err = s.CreateSession(ctx, payload.Subject)
+	newaccess, newrefresh, err = s.CreateSession(ctx, payload.Subject)
 	if err != nil {
 		return "", "", err
 	}
 
-	return access, refresh, nil
+	return newaccess, newrefresh, nil
 }
 
-func (s *authService) createToken(userID string, tokenID string, duration time.Duration, key []byte) (string, error) {
+func (s *authService) createToken(userID string, duration time.Duration, key []byte) (string, error) {
 	iat := time.Now()
 	exp := iat.Add(duration)
 
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"iat": iat.Unix(),
-		"exp": exp.Unix(),
-		"jti": tokenID,
+	claims := &payload{
+		Subject:   userID,
+		IssuedAt:  iat,
+		ExpiresAt: exp,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
@@ -117,13 +111,14 @@ func (s *authService) verifyToken(token string) (*payload, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, model.ErrInvalidToken
 		}
-		return s.refreshKey, nil
+		return s.accessKey, nil
 	})
 	if err != nil {
 		verr, ok := err.(*jwt.ValidationError)
 		if ok && errors.Is(verr.Inner, model.ErrExpiredToken) {
 			return nil, model.ErrExpiredToken
 		}
+		log.Println(err)
 		return nil, model.ErrInvalidToken
 	}
 
@@ -136,17 +131,17 @@ func (s *authService) verifyToken(token string) (*payload, error) {
 }
 
 func (s *authService) createRefresh() (string, error) {
-	jwtID := make([]byte, 72)
-	_, err := rand.Read(jwtID)
+	refresh := make([]byte, 20)
+	_, err := rand.Read(refresh)
 	if err != nil {
 		return "", fmt.Errorf("failed generate refresh token: %w", err)
 	}
 
-	return base64.URLEncoding.EncodeToString(jwtID), nil
+	return base64.URLEncoding.EncodeToString(refresh), nil
 }
 
 func (s *authService) hashToken(token string) (string, error) {
-	hashedtoken, err := bcrypt.GenerateFromPassword([]byte(token), 32)
+	hashedtoken, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
