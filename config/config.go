@@ -12,6 +12,9 @@ type Config struct {
 
 	MongoURI    string `mapstructure:"MONGO_URI"`
 	MongoDBName string `mapstructure:"MONGO_DBNAME"`
+
+	TokenAccessKey  string `mapstructure:"TOKEN_ACCESS_SECRET"`
+	TokenRefreshKey string `mapstructure:"TOKEN_REFRESH_SECRET"`
 }
 
 func LoadConfig(path string) (config Config, err error) {
