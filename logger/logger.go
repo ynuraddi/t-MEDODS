@@ -14,7 +14,8 @@ type Logger interface {
 }
 
 const (
-	ERR = iota
+	TST = iota
+	ERR
 	INF
 )
 

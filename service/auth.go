@@ -30,21 +30,19 @@ func (p *payload) Valid() error {
 }
 
 type authService struct {
-	accessKey  []byte
-	refreshKey []byte
-	repo       repository.ISessionRepository
+	secretKey []byte
+	repo      repository.ISessionRepository
 }
 
 func NewAuthService(config *config.Config, repo repository.ISessionRepository) *authService {
 	return &authService{
-		accessKey:  []byte(config.TokenAccessKey),
-		refreshKey: []byte(config.TokenRefreshKey),
-		repo:       repo,
+		secretKey: []byte(config.TokenAccessKey),
+		repo:      repo,
 	}
 }
 
 func (s *authService) CreateSession(ctx context.Context, userID string) (access, refresh string, err error) {
-	access, err = s.createToken(userID, 5*time.Minute, s.accessKey)
+	access, err = s.createToken(userID, 5*time.Minute, s.secretKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed generate access token: %w", err)
 	}
@@ -111,7 +109,7 @@ func (s *authService) verifyToken(token string) (*payload, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, model.ErrInvalidToken
 		}
-		return s.accessKey, nil
+		return s.secretKey, nil
 	})
 	if err != nil {
 		verr, ok := err.(*jwt.ValidationError)
